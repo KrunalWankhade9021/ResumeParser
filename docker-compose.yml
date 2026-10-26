@@ -1,0 +1,15 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: resume-db
+    environment:
+      POSTGRES_USER: resume
+      POSTGRES_PASSWORD: resume_dev_pw
+      POSTGRES_DB: resume_evaluator
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
