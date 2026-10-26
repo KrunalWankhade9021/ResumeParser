@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ResumePreview from "@/components/resume-preview";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -17,7 +18,10 @@ export default function Home() {
   const [fileError, setFileError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   // Free the temporary PDF link when leaving the page.
   useEffect(() => {
@@ -43,18 +47,34 @@ export default function Home() {
     setResumeUrl(URL.createObjectURL(file));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!resume) {
       setFileError("Add your resume as a PDF to continue.");
       return;
     }
-    // Next step (2b): send jobDescription + resume to /api/evaluate
-    console.log("JD length:", jobDescription.length, "Resume:", resume.name, resume.size);
-    setStatus(`Ready: ${jobDescription.trim().length} characters of job description and ${resume.name}.`);
+
+    setSubmitting(true);
+    setSubmitError("");
+    setStatus("Reading your resume and comparing it to the job. This takes about 20 seconds.");
+
+    const body = new FormData();
+    body.append("jobDescription", jobDescription);
+    body.append("resume", resume);
+
+    try {
+      const res = await fetch("/api/evaluate", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "The evaluation didn't finish. Try again in a moment.");
+      router.push(`/evaluation/${data.id}`);
+    } catch (err) {
+      setSubmitting(false);
+      setStatus("");
+      setSubmitError(err instanceof Error ? err.message : "The evaluation didn't finish. Try again in a moment.");
+    }
   }
 
-  const canSubmit = jobDescription.trim().length > 0 && resume !== null;
+  const canSubmit = jobDescription.trim().length > 0 && resume !== null && !submitting;
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-12 sm:px-8 sm:py-20">
@@ -185,15 +205,22 @@ export default function Home() {
         </div>
 
         <div className="flex flex-col-reverse gap-4 border-t border-rule pt-6 sm:flex-row sm:items-center sm:justify-between md:col-span-2">
-          <p className="text-sm text-graphite" aria-live="polite">
-            {status || "Your resume is only used for this evaluation."}
-          </p>
+          {submitError ? (
+            <p role="alert" className="text-sm text-danger">
+              {submitError}
+            </p>
+          ) : (
+            <p className="text-sm text-graphite" aria-live="polite">
+              {status || "Your resume is only used for this evaluation."}
+            </p>
+          )}
           <button
             type="submit"
             disabled={!canSubmit}
-            className="w-full rounded-md bg-ink px-6 py-3 font-medium text-paper transition-colors hover:bg-ink/85 focus:outline-none focus-visible:ring-4 focus-visible:ring-highlight disabled:cursor-not-allowed disabled:bg-rule disabled:text-graphite sm:w-auto"
+            aria-busy={submitting}
+            className="w-full shrink-0 rounded-md bg-ink px-6 py-3 font-medium text-paper transition-colors hover:bg-ink/85 focus:outline-none focus-visible:ring-4 focus-visible:ring-highlight disabled:cursor-not-allowed disabled:bg-rule disabled:text-graphite sm:w-auto"
           >
-            Evaluate resume
+            {submitting ? "Evaluating…" : "Evaluate resume"}
           </button>
         </div>
       </form>
