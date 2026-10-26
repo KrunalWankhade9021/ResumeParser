@@ -10,6 +10,24 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resume -d resume_evaluator"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: resume-evaluator
+    container_name: resume-app
+    env_file: .env.local
+    environment:
+      DATABASE_URL: postgresql://resume:resume_dev_pw@db:5432/resume_evaluator
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:
